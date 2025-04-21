@@ -4,6 +4,11 @@ import { protectedRoutes } from './constants/protected-route';
 const defaultProtectedUrl = '/'; 
 
 export default async function middleware(req: NextRequest) {
+  const response = NextResponse.next();
+
+  response.headers.set('Access-Control-Allow-Origin', 'https://tiny-olive.vercel.app')
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   const { pathname } = req.nextUrl;
   const token = req.cookies.get('token');
   const isAuthenticated = Boolean(token);
