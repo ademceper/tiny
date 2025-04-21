@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "jsx": "preserve",
-    "target": "es5",
+    "target": "ES2015",
     "lib": [
+      "ES2015",
       "dom",
       "dom.iterable",
       "esnext"
@@ -10,6 +11,7 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    "downlevelIteration": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
