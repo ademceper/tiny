@@ -1,0 +1,440 @@
+// prisma/schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+  // uncomment next line if you use Prisma <5.10
+  // directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String       @id @default(uuid())             // Kullanıcının benzersiz kimliği (UUID)
+  email           String?      @unique                         // Kullanıcının benzersiz e-posta adresi                                     
+  password        String?  
+  emailVerified   DateTime?                                      // Kullanıcının şifrelenmiş parolası
+  name            String?                                      // Kullanıcının adı
+  is2FAEnabled    Boolean      @default(false)                 // 2FA (iki faktörlü kimlik doğrulama) aktif mi
+  sessions        Session[]                                   // Kullanıcının oturumları
+  profile         UserProfile?                                 // Kullanıcının profil bilgileri
+  preferences     UserPreferences?                             // Kullanıcının tercihlerine ait bilgiler
+  organizations   OrganizationMember[]                         // Kullanıcının üye olduğu organizasyonlar
+  notifications   Notification[]                               // Kullanıcının bildirimleri
+  assignedTasks   TaskAssignment[]                             // Kullanıcıya atanmış görevler
+  comments        Comment[]                                    // Kullanıcının yaptığı yorumlar
+  createdTasks    Task[]       @relation("CreatedTasks")       // Kullanıcının oluşturduğu görevler
+  activityLogs    ActivityLog[]                                // Kullanıcının sistemdeki genel aktiviteleri
+  taskActivities  TaskActivity[]                               // Görev bazlı aktiviteleri (güncelleme, vs.)
+  taskStatusHistory TaskStatusHistory[]                        // Görev durumu geçmişi kayıtları
+  teamMemberships TeamMember[]                                 // Kullanıcının dahil olduğu ekip üyelikleri
+  watchedTasks    TaskWatcher[]                                // Kullanıcının izlediği görevler
+  timeEntries     TimeEntry[]                                  // Kullanıcının zaman kayıtları
+  mentions        Mention[]                                    // Görevlerde bahsedildiği (@mention) kayıtlar
+  roles           UserRole[]                                 // Kullanıcının sistemdeki rolleri
+  createdAt       DateTime     @default(now())                 // Kullanıcı kaydının oluşturulma tarihi
+  updatedAt       DateTime     @updatedAt                      // Kullanıcı kaydının son güncellenme tarihi
+}
+
+model UserProfile {
+  id        String   @id @default(uuid())                     // Profilin benzersiz kimliği (UUID)
+  user      User     @relation(fields: [userId], references: [id]) // User modeli ile birebir ilişki
+  userId    String   @unique                                 // Profilin bağlı olduğu kullanıcı ID'si (benzersiz)
+  avatarUrl String?                                          // Kullanıcının profil fotoğrafı (isteğe bağlı)
+  bio       String?                                          // Kullanıcının biyografisi / hakkında bilgisi (isteğe bağlı)
+  phone     String?                                          // Kullanıcının telefon numarası (isteğe bağlı)
+  location  String?                                          // Kullanıcının konumu / lokasyonu (isteğe bağlı)
+}
+
+model UserPreferences {
+  id        String   @id @default(uuid())                          // Tercihlerin benzersiz kimliği (UUID)
+  userId    String   @unique                                       // Tercihlerin bağlı olduğu kullanıcı ID'si (benzersiz)
+  user      User     @relation(fields: [userId], references: [id]) // User modeli ile birebir ilişki
+  theme     String   @default("light")                             // Tema tercihi (varsayılan: light)
+  language  String   @default("en")                                // Dil tercihi (varsayılan: İngilizce)
+  timezone  String?                                                // Saat dilimi tercihi (isteğe bağlı)
+}
+
+model Session {
+  id        String   @id @default(uuid())                          // Oturumun benzersiz kimliği (UUID)
+  userId    String                                                   // Oturuma ait kullanıcı ID'si
+  user      User     @relation(fields: [userId], references: [id]) // User modeli ile ilişki (her oturum bir kullanıcıya aittir)
+  token     String   @unique                                       // Oturum belirteci (genelde JWT veya UUID, benzersiz)
+  ip        String?                                                // Oturumu başlatan IP adresi (isteğe bağlı)
+  device    String?                                                // Oturumu başlatan cihaz bilgisi (isteğe bağlı)
+  createdAt DateTime @default(now())                              // Oturumun oluşturulma zamanı (varsayılan: şu an)
+  expiresAt DateTime                                               // Oturumun sona erme zamanı (geçerlilik süresi)
+}
+
+model Organization {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  domain    String?
+  icon      String?       // Eğer hazır bir icon seçilmişse (örnek: "building", "briefcase")
+  logo      Bytes?        // Eğer kullanıcı kendi logosunu yüklediyse binary dosya
+  members   OrganizationMember[]
+  teams     Team[]
+  projects  Project[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model OrganizationMember {
+  id             String     @id @default(uuid())                  // Organizasyon üyesinin benzersiz kimliği (UUID)
+  userId         String                                           // Üye kullanıcısının ID'si (User modeline bağlanır)
+  organizationId String                                           // Üyenin ait olduğu organizasyonun ID'si (Organization modeline bağlanır)
+  role           OrgRole    @default(MEMBER)                      // Üyenin rolü (varsayılan: MEMBER) 
+  user           User       @relation(fields: [userId], references: [id]) // Kullanıcı ile ilişki (User modeline bağlanır)
+  organization   Organization @relation(fields: [organizationId], references: [id]) // Organizasyon ile ilişki (Organization modeline bağlanır)
+  joinedAt       DateTime   @default(now())                         // Üyenin organizasyona katılma zamanı (varsayılan: şu an)
+}
+
+enum OrgRole {
+  OWNER   // Organizasyonun sahibi (tam yetki sahibi)
+  ADMIN   // Yönetici (organizasyonun yönetiminde büyük yetkiler)
+  MANAGER // Yönetici (belirli bir bölüm veya ekip üzerinde yetki sahibi)
+  MEMBER  // Üye (organizasyonun standart üyesi, genellikle sınırlı yetkiler)
+}
+
+model Team {
+  id              String       @id @default(uuid())           // Her takım için benzersiz bir kimlik (UUID) oluşturur.
+  name            String                                      // Takımın adı.
+  organizationId  String                                      // Takımın ait olduğu organizasyonun kimliği.
+  organization    Organization @relation(fields: [organizationId], references: [id])  // Organizasyon ile ilişkilendirir (bir takım yalnızca bir organizasyona ait olabilir).
+  members         TeamMember[]                                 // Takım üyelerinin ilişkili olduğu TeamMember modelini tutar (bir takımın birden fazla üyesi olabilir).
+  projects        Project[]                                    // Takımın çalıştığı projelerin listesini tutar (bir takım birden fazla proje ile ilişkilendirilebilir).
+  createdAt       DateTime     @default(now())                 // Takımın oluşturulma tarihi (şu anki zaman).
+  updatedAt       DateTime     @updatedAt                      // Takımın son güncellenme tarihi (otomatik olarak güncellenir).
+}
+
+model TeamMember {
+  id      String @id @default(uuid())          // Her takım üyesi için benzersiz bir kimlik (UUID) oluşturur.
+  userId  String                               // Üyenin kullanıcı kimliği.
+  teamId  String                               // Üyenin ait olduğu takımın kimliği.
+  user    User   @relation(fields: [userId], references: [id])  // Kullanıcı ile ilişkilendirir (bir üye yalnızca bir kullanıcıya ait olabilir).
+  team    Team   @relation(fields: [teamId], references: [id])  // Takım ile ilişkilendirir (bir üye yalnızca bir takıma ait olabilir).
+  role    TeamRole @default(MEMBER)           // Üyenin takımdaki rolünü belirtir (varsayılan olarak "MEMBER").
+}
+
+enum TeamRole {
+  LEAD       // Takım lideri (Lead). Genellikle takımın sorumluluğunu taşıyan kişi.
+  DEVELOPER  // Geliştirici (Developer). Yazılım geliştirme görevini üstlenen kişi.
+  DESIGNER   // Tasarımcı (Designer). Kullanıcı arayüzü ve deneyimi tasarlayan kişi.
+  TESTER     // Test uzmanı (Tester). Yazılımın doğruluğunu ve hatalarını kontrol eden kişi.
+  MEMBER     // Üye (Member). Takımda temel görevleri yerine getiren ve genellikle daha az sorumluluğa sahip olan kişi.
+}
+
+model Project {
+  id               String      @id @default(uuid())           // Proje için benzersiz ID, UUID formatında.
+  name             String      // Proje adı.
+  description      String?     // Proje açıklaması (isteğe bağlı).
+  teamId           String      // Projeye ait takımı belirten ID.
+  team             Team        @relation(fields: [teamId], references: [id]) // Projeye ait takım ile ilişkilendirme.
+  organizationId   String      // Projeye ait organizasyonu belirten ID.
+  organization     Organization @relation(fields: [organizationId], references: [id]) // Projeye ait organizasyon ile ilişkilendirme.
+  tasks            Task[]      // Projeye ait görevlerin (tasks) ilişkisi.
+  labels           Label[]     // Projeye ait etiketlerin (labels) ilişkisi.
+  taskStatuses     TaskStatus[] // Projeye ait görev statülerinin ilişkisi.
+  calendarEvents   CalendarEvent[] // Projeye ait takvim etkinliklerinin ilişkisi.
+  customFields     CustomField[] // Projeye özel alanların ilişkisi.
+  integrations     Integration[] // Projeye ait entegrasyonların ilişkisi.
+  createdAt        DateTime    @default(now()) // Projenin oluşturulma tarihi.
+  updatedAt        DateTime    @updatedAt // Projenin son güncellenme tarihi.
+}
+
+model Task {
+  id              String              @id @default(uuid())         // Görev için benzersiz bir ID, UUID formatında.
+  title           String              // Görev başlığı (zorunlu).
+  description     String?             // Görev açıklaması (isteğe bağlı).
+  statusId        String              // Görev statüsünü belirten ID.
+  status          TaskStatus          @relation("TaskToStatus", fields: [statusId], references: [id]) // Görev statüsü ile ilişkilendirme.
+  priority        TaskPriority        @default(MEDIUM)            // Görev önceliği, varsayılan olarak 'MEDIUM'.
+  dueDate         DateTime?           // Görev bitiş tarihi (isteğe bağlı).
+  creator         User                @relation("CreatedTasks", fields: [creatorId], references: [id]) // Görevi oluşturan kullanıcı.
+  creatorId       String              // Görevi oluşturan kullanıcının ID'si.
+  project         Project             @relation(fields: [projectId], references: [id]) // Görev ile ilişkili proje.
+  projectId       String              // Görevin ait olduğu proje ID'si.
+  assignees       TaskAssignment[]    // Göreve atanmış kullanıcıların listesi.
+  subtasks        SubTask[]           // Göreve bağlı alt görevlerin listesi.
+  checklist       TaskChecklist[]     // Görev için yapılacaklar listesi (checklist).
+  comments        Comment[]           // Görevle ilgili yorumların listesi.
+  attachments     Attachment[]        // Görevle ilişkili dosya ekleri.
+  labels          Label[]             @relation("TaskLabels")    // Göreve eklenmiş etiketler.
+  watchers        TaskWatcher[]       // Görevi izleyen kullanıcıların listesi.
+  activityLogs    TaskActivity[]      // Görevle ilgili aktivitelerin kayıtları.
+  history         TaskStatusHistory[] // Görev statüsünün geçmişi.
+  dependencies    TaskDependency[]    @relation("DependentTask") // Görevden bağımlı olan görevler.
+  dependents      TaskDependency[]    @relation("DependsOnTask") // Göreve bağımlı olan görevler.
+  timeEntries     TimeEntry[]         // Görev için yapılan zaman girişleri.
+  tags            Tag[]               @relation("TaskTags")      // Göreve eklenmiş etiketler.
+  recurrenceRule  RecurrenceRule?     // Görev için tekrarlama kuralı (isteğe bağlı).
+  customFields    TaskCustomField[]   // Görev için özel alanlar.
+  createdAt       DateTime            @default(now())            // Görev oluşturulma tarihi.
+  updatedAt       DateTime            @updatedAt                 // Görev güncellenme tarihi.
+}
+
+model SubTask {
+  id        String   @id @default(uuid())     // Alt görev için benzersiz bir ID, UUID formatında.
+  parentId  String                                // Ana görevin ID'si (alt görev, bir ana göreve bağlıdır).
+  parent    Task     @relation(fields: [parentId], references: [id]) // Ana görev ile ilişki (alt görev, bir ana görev ile bağlanır).
+  title     String                                // Alt görev başlığı (zorunlu).
+  isDone    Boolean  @default(false)              // Alt görev tamamlanma durumu. Varsayılan olarak 'false' (tamamlanmamış).
+}
+
+model TaskAssignment {
+  id        String   @id @default(uuid())    // Atama için benzersiz bir ID, UUID formatında.
+  taskId    String                                 // Atamanın yapılacağı görevin ID'si.
+  userId    String                                 // Görev atanacak kullanıcının ID'si.
+  task      Task    @relation(fields: [taskId], references: [id])  // Görev ile ilişki (hangi göreve atama yapıldığını belirtir).
+  user      User    @relation(fields: [userId], references: [id])  // Kullanıcı ile ilişki (hangi kullanıcıya atama yapıldığını belirtir).
+  assignedAt DateTime @default(now())            // Görevin atandığı zaman. Varsayılan olarak mevcut zaman (şu anki tarih ve saat).
+}
+
+model TaskChecklist {
+  id        String   @id @default(uuid())  // Benzersiz kimlik, UUID formatında.
+  taskId    String   // Görevle ilişkilendirilen checklist öğesinin bağlı olduğu görevin ID'si.
+  content   String   // Checklist öğesinin içeriği, genellikle yapılacak işin açıklaması.
+  isChecked Boolean  @default(false) // Checklist öğesinin tamamlanıp tamamlanmadığını belirten boolean değeri. Varsayılan olarak false.
+  task      Task     @relation(fields: [taskId], references: [id])  // Bu checklist öğesinin hangi görevle ilişkilendirildiğini belirten ilişki.
+}
+
+model TaskWatcher {
+  id      String @id @default(uuid())  // Benzersiz kimlik, UUID formatında.
+  taskId  String  // İzlenen görevin ID'si.
+  userId  String  // Görevi izleyen kullanıcının ID'si.
+  task    Task    @relation(fields: [taskId], references: [id])  // Bu kayıt hangi görevle ilişkili olduğunu belirten ilişki.
+  user    User    @relation(fields: [userId], references: [id])  // Bu kayıt hangi kullanıcıyla ilişkili olduğunu belirten ilişki.
+}
+
+model TaskStatusHistory {
+  id        String     @id @default(uuid())  // Benzersiz kimlik, UUID formatında.
+  taskId    String     // Görevle ilişkili ID.
+  fromId    String     // Görev statüsünün değiştiği önceki durumun ID'si.
+  toId      String     // Görev statüsünün değiştiği yeni durumun ID'si.
+  from      TaskStatus @relation("FromStatus", fields: [fromId], references: [id])  // Önceki durumla ilişki.
+  to        TaskStatus @relation("ToStatus", fields: [toId], references: [id])  // Yeni durumla ilişki.
+  userId    String     // Durum değişikliğini yapan kullanıcının ID'si.
+  changedAt DateTime   @default(now())  // Durum değişikliğinin zamanı.
+  task      Task       @relation(fields: [taskId], references: [id])  // Bu kayıt hangi görevle ilişkili olduğunu belirten ilişki.
+  user      User       @relation(fields: [userId], references: [id])  // Durumu değiştiren kullanıcıyla ilişkili.
+}
+
+model TaskActivity {
+  id        String   @id @default(uuid())  // Benzersiz kimlik, UUID formatında.
+  taskId    String   // Aktivitenin ilişkili olduğu görev ID'si.
+  userId    String   // Aktiviteyi gerçekleştiren kullanıcının ID'si.
+  action    String   // Aktivitenin türü veya açıklaması (örneğin, "task updated", "task commented").
+  createdAt DateTime @default(now())  // Aktivitenin oluşturulma zamanı.
+  task      Task     @relation(fields: [taskId], references: [id])  // Aktivitenin hangi görevle ilişkili olduğunu belirtir.
+  user      User     @relation(fields: [userId], references: [id])  // Aktiviteyi gerçekleştiren kullanıcıyı belirtir.
+}
+
+model Label {
+  id        String   @id @default(uuid())  // Benzersiz kimlik, UUID formatında.
+  name      String   // Etiket ismi, örneğin "Bug", "Feature", "Urgent".
+  color     String   // Etiket rengi, örneğin "#FF5733".
+  projectId String   // Etiketin ilişkili olduğu proje ID'si.
+  project   Project  @relation(fields: [projectId], references: [id])  // Etiketin hangi projeyle ilişkili olduğunu belirtir.
+  tasks     Task[]   @relation("TaskLabels")  // Etiketin ilişkilendirildiği görevler. Etiket, birden fazla göreve atanabilir.
+  @@unique([name, projectId])  // Aynı isimde bir etiketi sadece bir projeye atamayı sağlar. 
+}
+
+model Comment {
+  id        String   @id @default(uuid())  // Yorumun benzersiz kimliği, UUID formatında.
+  content   String   // Yorum içeriği. Bu, kullanıcının yazdığı metni tutar.
+  taskId    String   // Yorumun ait olduğu görev ID'si.
+  authorId  String   // Yorumun yazarı olan kullanıcının ID'si.
+  task      Task     @relation(fields: [taskId], references: [id])  // Yorumun ilişkili olduğu görev. Bu ilişki, `taskId` üzerinden `Task` modeline bağlanır.
+  author    User     @relation(fields: [authorId], references: [id])  // Yorumun yazarı olan kullanıcı. Bu ilişki, `authorId` üzerinden `User` modeline bağlanır.
+  mentions  Mention[]  // Yorumda bahsedilen kullanıcılar. Bir yorum, birden fazla kullanıcıyı "mention" edebilir.
+  createdAt DateTime @default(now())  // Yorumun oluşturulma zamanı. Otomatik olarak şu anki zamanla doldurulur.
+}
+
+model Tag {
+  id    String   @id @default(uuid())  // Etiketin benzersiz kimliği, UUID formatında.
+  name  String   @unique  // Etiketin adı, her etiketin adı benzersiz olmalıdır.
+  tasks Task[]   @relation("TaskTags")  // Etiketin ilişkili olduğu görevler. Bir etiket birden fazla göreve atanabilir.
+}
+
+model RecurrenceRule {
+  id          String   @id @default(uuid())  // Kuralın benzersiz kimliği, UUID formatında.
+  taskId      String   @unique  // Bu kuralın ilişkilendirildiği görevin kimliği, her kural yalnızca bir göreve atanabilir.
+  frequency   RecurrenceFrequency  // Tekrar sıklığı (günlük, haftalık, aylık vb.).
+  interval    Int      @default(1)  // Tekrar sıklığının aralığı (örneğin, her x günde bir).
+  until       DateTime?  // Kuralların geçerliliği sona erene kadar devam edeceği tarih.
+  task        Task     @relation(fields: [taskId], references: [id])  // Bu kuralın ait olduğu görev.
+}
+
+enum RecurrenceFrequency {
+  DAILY    // Günlük tekrar sıklığı
+  WEEKLY   // Haftalık tekrar sıklığı
+  MONTHLY  // Aylık tekrar sıklığı
+  YEARLY   // Yıllık tekrar sıklığı
+}
+
+model Attachment {
+  id          String   @id @default(uuid())      // Her bir ek dosyanın benzersiz kimliği
+  fileUrl     String                                // Dosyanın erişim URL'si (dosyanın saklandığı yer)
+  fileType    String                                // Dosyanın türü (örn. 'image/jpeg', 'application/pdf', vb.)
+  fileName    String                                // Dosyanın adı
+  fileSize    Int                                   // Dosyanın boyutu (örneğin byte cinsinden)
+  taskId      String                                // Dosyanın ilişkilendirildiği görev (Task) kimliği
+  uploadedBy  String                                // Dosyayı yükleyen kullanıcının kimliği
+  uploadedAt  DateTime @default(now())              // Dosyanın yüklendiği tarih ve saat
+  task        Task   @relation(fields: [taskId], references: [id]) // Dosyanın bağlı olduğu görev
+}
+
+model TimeEntry {
+  id        String   @id @default(uuid())      // Her bir zaman girişi için benzersiz kimlik
+  taskId    String                                // Zaman kaydının ilişkilendirildiği görev (Task) kimliği
+  userId    String                                // Zaman kaydını yapan kullanıcı kimliği
+  startedAt DateTime                              // Zaman kaydının başlama tarihi ve saati
+  endedAt   DateTime?                             // Zaman kaydının bitiş tarihi ve saati (opsiyonel)
+  duration  Int?                                  // Zaman kaydının süresi (dakika cinsinden, opsiyonel)
+  task      Task     @relation(fields: [taskId], references: [id])   // Zaman kaydının ilişkilendirildiği görev
+  user      User     @relation(fields: [userId], references: [id])   // Zaman kaydını yapan kullanıcı
+}
+
+model TaskDependency {
+  id         String @id @default(uuid())             // Her bağımlılık için benzersiz kimlik
+  taskId     String                                   // Bağımlı görev (task) kimliği
+  dependsOnId String                                  // Bağımlı olunan görev (dependsOn) kimliği
+  task       Task   @relation("DependentTask", fields: [taskId], references: [id])  // Bağımlı görev
+  dependsOn  Task   @relation("DependsOnTask", fields: [dependsOnId], references: [id]) // Bağımlı olunan görev
+}
+
+model Integration {
+  id            String   @id @default(uuid())     // Her entegrasyon için benzersiz kimlik
+  projectId     String                               // Entegrasyonun ilişkilendirildiği proje kimliği
+  type          IntegrationType                     // Entegrasyon türü (API, Webhook vb.)
+  endpointUrl   String                               // Entegrasyonun bağlantı noktası URL'si
+  isActive      Boolean  @default(true)              // Entegrasyonun aktif olup olmadığını belirten bayrak
+  secretToken   String?                              // Entegrasyon için opsiyonel gizli token (API anahtarı gibi)
+  createdAt     DateTime @default(now())             // Entegrasyon kaydının oluşturulma tarihi
+  project       Project  @relation(fields: [projectId], references: [id]) // Entegrasyonun bağlı olduğu proje
+}
+
+enum IntegrationType {
+  SLACK   // Slack entegrasyonu
+  WEBHOOK // Webhook entegrasyonu
+  GITHUB  // GitHub entegrasyonu
+  JIRA    // JIRA entegrasyonu
+}
+
+model CustomField {
+  id          String   @id @default(uuid())   // Benzersiz ID, UUID formatında otomatik oluşturulur
+  projectId   String                               // İlgili proje ID'si
+  label       String                               // Özel alanın etiket/metni
+  type        FieldType                           // Özel alanın türü (enum olarak tanımlanmış)
+  isRequired  Boolean  @default(false)             // Bu özel alanın zorunlu olup olmadığı
+  project     Project  @relation(fields: [projectId], references: [id]) // Proje ile ilişki
+  tasks       TaskCustomField[]                    // Bu özel alana bağlı görevler (birçokdan bire ilişki)
+}
+
+enum FieldType {
+  TEXT     // Metin tipi, örneğin kullanıcıdan bir yazı alınacaksa
+  NUMBER   // Sayısal tip, örneğin kullanıcıdan bir sayı alınacaksa
+  DATE     // Tarih tipi, örneğin bir tarih seçilmesi gereken durumlar
+  SELECT   // Seçim tipi, örneğin bir dropdown listesi veya çoklu seçenek
+  CHECKBOX // Onay kutusu, bir "doğru/yanlış" veya "evet/hayır" durumu
+}
+
+model TaskCustomField {
+  id            String       @id @default(uuid())  // Otomatik olarak benzersiz bir ID oluşturur.
+  taskId        String       // Bu özel alanın hangi göreve ait olduğunu belirtir.
+  customFieldId String       // Bu özel alanın hangi özel alan türüne ait olduğunu belirtir.
+  value         String       // Bu özel alanın değeri (kullanıcı tarafından girilen veri).
+  task          Task         @relation(fields: [taskId], references: [id])  // Task ile ilişki kurar.
+  customField   CustomField  @relation(fields: [customFieldId], references: [id])  // CustomField ile ilişki kurar.
+}
+
+model Mention {
+  id        String   @id @default(uuid())  // Otomatik olarak benzersiz bir ID oluşturur.
+  userId    String   // Mentions edilen kullanıcının ID'si.
+  commentId String   // Bu mention'ın hangi yoruma ait olduğunu belirtir.
+  user      User     @relation(fields: [userId], references: [id])  // Kullanıcı ile ilişki kurar.
+  comment   Comment  @relation(fields: [commentId], references: [id])  // Yorum ile ilişki kurar.
+}
+
+model Notification {
+  id        String   @id @default(uuid())  // Otomatik olarak benzersiz bir ID oluşturur.
+  title     String   // Bildirimin başlığı.
+  message   String   // Bildirimin içeriği (mesaj).
+  userId    String   // Bildirimi alan kullanıcının ID'si.
+  isRead    Boolean  @default(false) // Bildirimin okunup okunmadığını gösterir.
+  createdAt DateTime @default(now())   // Bildirimin oluşturulma zamanı.
+  user      User     @relation(fields: [userId], references: [id]) // Kullanıcı ile ilişki kurar.
+}
+
+model CalendarEvent {
+  id        String   @id @default(uuid()) // Otomatik olarak benzersiz bir ID oluşturur.
+  title     String   // Etkinliğin başlığı.
+  start     DateTime // Etkinliğin başlangıç tarihi ve saati.
+  end       DateTime // Etkinliğin bitiş tarihi ve saati.
+  projectId String   // Etkinlikle ilişkili proje ID'si.
+  project   Project  @relation(fields: [projectId], references: [id]) // Projeyle ilişki.
+  createdBy String   // Etkinliği oluşturan kullanıcının ID'si.
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid()) // Eylem logunun benzersiz ID'si
+  userId    String   // Eylemi gerçekleştiren kullanıcının ID'si
+  action    String   // Eylemin açıklaması (örneğin: "task created")
+  metadata  Json?    // Eyleme ait ek veri (isteğe bağlı, örneğin: task verisi)
+  createdAt DateTime @default(now()) // Eylemin oluşturulma tarihi
+  user      User     @relation(fields: [userId], references: [id]) // Kullanıcıyla ilişki
+}
+
+model Role {
+  id          String           @id @default(uuid())          // Rolün benzersiz ID'si
+  name        String           @unique                       // Rol adı (örneğin: "Admin", "User")
+  users       UserRole[]                                     // Bu role ait kullanıcılar
+  permissions RolePermission[]                               // Bu role ait izinler
+  createdAt   DateTime         @default(now())               // Oluşturulma tarihi
+  updatedAt   DateTime         @updatedAt                    // Güncellenme tarihi
+}
+
+model Permission {
+  id    String @id @default(uuid()) // İznin benzersiz ID'si
+  key   String @unique // İznin anahtarı (örneğin: "task:create")
+  roles RolePermission[] // İznin ait olduğu roller
+}
+
+model UserRole {
+  id     String @id @default(uuid()) // Kullanıcı-rol ilişkisinin benzersiz ID'si
+  userId String // Kullanıcı ID'si
+  roleId String // Rol ID'si
+  user   User   @relation(fields: [userId], references: [id]) // Kullanıcı ile ilişki
+  role   Role   @relation(fields: [roleId], references: [id]) // Rol ile ilişki
+}
+
+model RolePermission {
+  id           String @id @default(uuid()) // Rol-izin ilişkisinin benzersiz ID'si
+  roleId       String // Rol ID'si
+  permissionId String // İzin ID'si
+  role         Role       @relation(fields: [roleId], references: [id]) // Rol ile ilişki
+  permission   Permission @relation(fields: [permissionId], references: [id]) // İzin ile ilişki
+}
+
+model TaskStatus {
+  id        String   @id @default(uuid()) // Durumun benzersiz ID'si
+  name      String   // Durum adı (örneğin: "To Do", "In Progress", "Completed")
+  color     String?  // Durum rengi (isteğe bağlı)
+  projectId String?  // Durum bir proje ile ilişkilendirildiyse proje ID'si
+  project   Project? @relation(fields: [projectId], references: [id]) // Proje ile ilişki
+  tasks     Task[]   @relation("TaskToStatus") // Bu durumu taşıyan görevler
+  fromStatuses TaskStatusHistory[] @relation("FromStatus") // Durum değişikliğinin kaydı
+  toStatuses TaskStatusHistory[] @relation("ToStatus") // Durum değişikliğinin kaydı
+  createdAt DateTime @default(now()) // Durum oluşturulma tarihi
+
+  @@unique([name, projectId]) // Aynı projede aynı isimle durum tekrar edemez
+}
+
+enum TaskPriority {
+  LOW     // Düşük öncelikli görevler
+  MEDIUM  // Orta öncelikli görevler
+  HIGH    // Yüksek öncelikli görevler
+  CRITICAL // Kritik öncelikli görevler
+}
+

@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,53 +7,60 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { UserAvatarProfile } from '@/components/user-avatar-profile';
-import { SignOutButton, useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-export function UserNav() {
-  const { user } = useUser();
-  const router = useRouter();
-  if (user) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
-            <UserAvatarProfile user={user} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className='w-56'
-          align='end'
-          sideOffset={10}
-          forceMount
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import { RiGlobalLine, RiWalletLine, RiLogoutBoxLine } from "@remixicon/react";
+
+export default function Usernav() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-auto p-0 hover:bg-transparent rounded-full"
         >
-          <DropdownMenuLabel className='font-normal'>
-            <div className='flex flex-col space-y-1'>
-              <p className='text-sm leading-none font-medium'>
-                {user.fullName}
-              </p>
-              <p className='text-muted-foreground text-xs leading-none'>
-                {user.emailAddresses[0].emailAddress}
-              </p>
-            </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem>Billing</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>New Team</DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
+          <Avatar>
+            <AvatarImage
+              src="https://res.cloudinary.com/dlzlfasou/image/upload/v1741353515/user_i02xph.png"
+              width={32}
+              height={32}
+              alt="Profile image"
+            />
+            <AvatarFallback>LB</AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-w-64 dark:border-none" align="end">
+        <DropdownMenuLabel className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-medium text-foreground">
+            Lucy Bennett
+          </span>
+          <span className="truncate text-xs font-normal text-muted-foreground">
+            l.bennett@originui.com
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="dark:bg-white/8" />
+        <DropdownMenuGroup>
           <DropdownMenuItem>
-            <SignOutButton redirectUrl='/auth/sign-in' />
+            <RiGlobalLine size={16} className="opacity-60" aria-hidden="true" />
+            <span>Currency</span>
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
+          <DropdownMenuItem>
+            <RiWalletLine size={16} className="opacity-60" aria-hidden="true" />
+            <span>Wallet</span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator className="dark:bg-white/8" />
+        <DropdownMenuItem>
+          <RiLogoutBoxLine
+            size={16}
+            className="opacity-60"
+            aria-hidden="true"
+          />
+          <span>Sign out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

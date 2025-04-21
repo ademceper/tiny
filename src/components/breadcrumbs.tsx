@@ -13,24 +13,32 @@ import { Fragment } from 'react';
 
 export function Breadcrumbs() {
   const items = useBreadcrumbs();
-  if (items.length === 0) return null;
+
+  // Eğer breadcrumb öğelerinde GUID'yi engellemek istiyorsanız, link'leri filtreleyebiliriz
+  const filteredItems = items.map(item => ({
+    ...item,
+    // Eğer link içinde GUID varsa, onu temizleyebiliriz
+    link: item.link.replace(/\/[a-f0-9\-]{36}$/, '')  // URL sonundaki GUID'yi kaldırıyoruz
+  }));
+
+  if (filteredItems.length === 0) return null;
 
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        {items.map((item, index) => (
+        {filteredItems.map((item, index) => (
           <Fragment key={item.title}>
-            {index !== items.length - 1 && (
+            {index !== filteredItems.length - 1 && (
               <BreadcrumbItem className='hidden md:block'>
                 <BreadcrumbLink href={item.link}>{item.title}</BreadcrumbLink>
               </BreadcrumbItem>
             )}
-            {index < items.length - 1 && (
+            {index < filteredItems.length - 1 && (
               <BreadcrumbSeparator className='hidden md:block'>
                 <IconSlash />
               </BreadcrumbSeparator>
             )}
-            {index === items.length - 1 && (
+            {index === filteredItems.length - 1 && (
               <BreadcrumbPage>{item.title}</BreadcrumbPage>
             )}
           </Fragment>

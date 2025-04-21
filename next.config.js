@@ -14,6 +14,10 @@ const nextConfig = {
       }
     ]
   },
+  env: {
+    APP_URL: process.env.APP_URL,
+  },
+  reactStrictMode: false,
   transpilePackages: ['geist']
 };
 

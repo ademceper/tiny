@@ -1,16 +1,33 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { protectedRoutes } from './constants/protected-route';
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
+const defaultProtectedUrl = '/'; 
 
-export default clerkMiddleware(async (auth, req: NextRequest) => {
-  if (isProtectedRoute(req)) await auth.protect();
-});
+export default async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const token = req.cookies.get('token');
+  const isAuthenticated = Boolean(token);
+
+  const isProtectedRoute = protectedRoutes.some((routeRegex) => routeRegex.test(pathname));
+  const isSignInPage = pathname === '/sign-in';
+  const isSignUpPage = pathname === '/sign-up';
+
+  // Login olan kullanıcı sign-in/sign-up sayfasına gitmeye çalışıyorsa engelle
+  if ((isSignInPage || isSignUpPage) && isAuthenticated) {
+    return NextResponse.redirect(new URL(defaultProtectedUrl, req.url));
+  }
+
+  // Login olmayan kullanıcı korumalı route'a gitmeye çalışıyorsa yönlendir
+  if (isProtectedRoute && !isAuthenticated) {
+    return NextResponse.redirect(new URL('/sign-in', req.url));
+  }
+
+  return NextResponse.next();
+}
+
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)'
-  ]
+    '/((?!_next|.*\\.(?:ico|png|jpg|jpeg|svg|webp|css|js|ts|json|map|woff2?|ttf|eot|txt|csv|xlsx?|docx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+  ],
 };
